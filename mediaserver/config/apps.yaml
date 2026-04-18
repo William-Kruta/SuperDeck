@@ -50,5 +50,5 @@ apps:
     category: Media
     description: Netflix streaming
     logo: /assets/logos/netflix-logo.webp
-    command: ./scripts/launch-netflix.sh
+    command: env ./scripts/launch-netflix.sh
     requires_display: true
