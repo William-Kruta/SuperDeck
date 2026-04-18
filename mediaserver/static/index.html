@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MediaServer</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-view="launcher">
+    <div class="corner-br" aria-hidden="true"></div>
+
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <p class="eyebrow">Local Console</p>
+          <h1>Media<span class="accent">Server</span></h1>
+        </div>
+        <div class="topbar-right">
+          <div class="status" id="controller-status">
+            <span class="status-dot"></span>
+            <span id="controller-status-text">Keyboard ready</span>
+          </div>
+          <button class="settings-btn" id="settings-btn" type="button"
+                  aria-label="Settings" title="Settings (S)">⚙</button>
+        </div>
+      </header>
+
+      <!-- ── Launcher view ── -->
+      <div class="launcher-view">
+        <section class="stage" aria-label="Apps">
+          <div id="app-grid" role="listbox" aria-label="Launchable apps"></div>
+        </section>
+        <footer class="help" aria-label="Controls">
+          <span>D-pad / stick: move</span>
+          <span>A / Enter: launch</span>
+          <span>B / Esc: home</span>
+          <span>S / Select: settings</span>
+        </footer>
+      </div>
+
+      <!-- ── Settings view ── -->
+      <div class="settings-view" aria-label="Settings">
+        <div class="settings-layout">
+
+          <nav class="settings-nav" aria-label="Settings sections">
+            <button class="settings-nav-item is-active" data-panel="appearance" type="button">
+              <span class="settings-nav-icon">🎨</span> Appearance
+            </button>
+            <button class="settings-nav-item" data-panel="startup" type="button">
+              <span class="settings-nav-icon">🚀</span> Startup
+            </button>
+            <button class="settings-nav-item" data-panel="sysinfo" type="button">
+              <span class="settings-nav-icon">🖥</span> System Info
+            </button>
+          </nav>
+
+          <!-- Appearance panel -->
+          <div class="settings-panel is-active" id="panel-appearance">
+            <div class="panel-section-title">Appearance</div>
+
+            <div class="setting-row">
+              <div class="setting-label">Color Theme</div>
+              <div class="setting-desc">Preset accent color combinations</div>
+              <div class="theme-swatches">
+                <button class="theme-swatch" data-theme="cyan"   type="button">Cyan</button>
+                <button class="theme-swatch" data-theme="purple" type="button">Purple</button>
+                <button class="theme-swatch" data-theme="green"  type="button">Green</button>
+                <button class="theme-swatch" data-theme="amber"  type="button">Amber</button>
+              </div>
+            </div>
+
+            <div class="setting-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-label">Custom Colors</div>
+              <div class="setting-desc">Override the preset with your own accent colors</div>
+              <div class="color-picker-row">
+                <label class="color-picker-item">
+                  <input type="color" id="color-primary" value="#00d4ff" />
+                  Primary accent
+                </label>
+                <label class="color-picker-item">
+                  <input type="color" id="color-secondary" value="#a78bfa" />
+                  Secondary accent
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Startup panel -->
+          <div class="settings-panel" id="panel-startup">
+            <div class="panel-section-title">Startup</div>
+            <div class="setting-row">
+              <div class="setting-label">Auto-launch on startup</div>
+              <div class="setting-desc">Automatically open an app when MediaServer loads. Select None to disable.</div>
+              <div class="startup-grid" id="startup-grid"></div>
+            </div>
+          </div>
+
+          <!-- System Info panel -->
+          <div class="settings-panel" id="panel-sysinfo">
+            <div class="panel-section-title">System Info</div>
+            <div id="sysinfo-content">
+              <p class="setting-desc">Open this panel to load system status.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <footer class="help" aria-label="Settings controls">
+          <span>↑↓: sections</span>
+          <span>Enter: select</span>
+          <span>Esc / S: back</span>
+        </footer>
+      </div>
+    </main>
+
+    <div class="lock-overlay" id="lock-overlay" hidden>
+      <div>
+        <span class="eyebrow">External app active</span>
+        <h2 id="lock-title">Controller locked</h2>
+        <p>Launcher input is paused. Press Escape or click here when you return.</p>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
