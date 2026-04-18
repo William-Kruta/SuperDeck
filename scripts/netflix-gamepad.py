@@ -28,7 +28,9 @@ def pid_alive(pid: int) -> bool:
 
 
 def xdo(args: list[str]) -> None:
-    subprocess.run(["xdotool"] + args, capture_output=True)
+    r = subprocess.run(["xdotool"] + args, capture_output=True)
+    if r.returncode != 0:
+        print(f"[netflix-gamepad] xdotool failed: {r.stderr.decode().strip()}", file=sys.stderr)
 
 
 def apply_dead_zone(value: float) -> float:
@@ -183,7 +185,10 @@ def main() -> None:
     watcher = threading.Thread(target=watch_pid, args=(target_pid,), daemon=True)
     watcher.start()
 
-    run_loop(dev)
+    try:
+        run_loop(dev)
+    finally:
+        dev.close()
 
 
 if __name__ == "__main__":
