@@ -284,6 +284,8 @@ async function fetchSystemInfo() {
       fetch("/api/dependencies"),
       fetch("/api/services"),
     ]);
+    if (!sessionRes.ok || !depsRes.ok || !servicesRes.ok)
+      throw new Error(`API error (session:${sessionRes.status} deps:${depsRes.status} services:${servicesRes.status})`);
     const [session, deps, services] = await Promise.all([
       sessionRes.json(),
       depsRes.json(),

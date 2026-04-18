@@ -42,20 +42,20 @@
       <div class="settings-view" aria-label="Settings">
         <div class="settings-layout">
 
-          <nav class="settings-nav" aria-label="Settings sections">
-            <button class="settings-nav-item is-active" data-panel="appearance" type="button" role="tab" aria-selected="true">
+          <nav class="settings-nav" role="tablist" aria-label="Settings sections">
+            <button class="settings-nav-item is-active" data-panel="appearance" type="button" role="tab" aria-selected="true" id="tab-appearance" aria-controls="panel-appearance">
               <span class="settings-nav-icon">🎨</span> Appearance
             </button>
-            <button class="settings-nav-item" data-panel="startup" type="button" role="tab" aria-selected="false">
+            <button class="settings-nav-item" data-panel="startup" type="button" role="tab" aria-selected="false" id="tab-startup" aria-controls="panel-startup">
               <span class="settings-nav-icon">🚀</span> Startup
             </button>
-            <button class="settings-nav-item" data-panel="sysinfo" type="button" role="tab" aria-selected="false">
+            <button class="settings-nav-item" data-panel="sysinfo" type="button" role="tab" aria-selected="false" id="tab-sysinfo" aria-controls="panel-sysinfo">
               <span class="settings-nav-icon">🖥</span> System Info
             </button>
           </nav>
 
           <!-- Appearance panel -->
-          <div class="settings-panel is-active" id="panel-appearance" role="tabpanel">
+          <div class="settings-panel is-active" id="panel-appearance" role="tabpanel" aria-labelledby="tab-appearance">
             <div class="panel-section-title">Appearance</div>
 
             <div class="setting-row">
@@ -88,7 +88,7 @@
           </div>
 
           <!-- Startup panel -->
-          <div class="settings-panel" id="panel-startup" role="tabpanel">
+          <div class="settings-panel" id="panel-startup" role="tabpanel" aria-labelledby="tab-startup">
             <div class="panel-section-title">Startup</div>
             <div class="setting-row">
               <div class="setting-label">Auto-launch on startup</div>
@@ -98,7 +98,7 @@
           </div>
 
           <!-- System Info panel -->
-          <div class="settings-panel" id="panel-sysinfo" role="tabpanel">
+          <div class="settings-panel" id="panel-sysinfo" role="tabpanel" aria-labelledby="tab-sysinfo">
             <div class="panel-section-title">System Info</div>
             <div id="sysinfo-content">
               <p class="setting-desc">Open this panel to load system status.</p>
