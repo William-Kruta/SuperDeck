@@ -18,6 +18,7 @@ assert_contains "apt install includes xdotool"      "xdotool"       "$script"
 assert_contains "apt install includes python3-evdev" "python3-evdev" "$script"
 assert_contains "dnf install includes xdotool"      "xdotool"       "$script"
 assert_contains "pacman install includes xdotool"   "xdotool"       "$script"
+assert_contains "pacman install includes python-evdev" "python-evdev" "$script"
 assert_contains "zypper install includes xdotool"   "xdotool"       "$script"
 
 echo

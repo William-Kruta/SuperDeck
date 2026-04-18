@@ -66,7 +66,7 @@ Fix the apt repository error above first. A common cause is a third-party repo
 with a missing signing key. In that case either add the repo key, disable that
 repo temporarily, or install packages manually, for example:
 
-  sudo apt-get install mpv retroarch chromium steam-launcher
+  sudo apt-get install mpv retroarch chromium steam-launcher xdotool python3-evdev
 
 EOF
     exit 1
@@ -98,7 +98,7 @@ elif command -v zypper >/dev/null 2>&1; then
   install_zypper
 else
   echo "No supported package manager found." >&2
-  echo "Install these packages manually: chromium mpv steam retroarch" >&2
+  echo "Install these packages manually: chromium mpv steam retroarch xdotool python3-evdev" >&2
   exit 1
 fi
 
