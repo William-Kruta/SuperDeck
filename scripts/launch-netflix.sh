@@ -14,21 +14,6 @@ TV_AGENTS=(
   "Mozilla/5.0 (Linux; Android 9; AFTT Build/PS7233; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/67.0.3396.87 Mobile Safari/537.36"
 )
 
-# Allow sourcing for tests without executing main logic
-if [[ "${1:-}" == "--source-only" ]]; then
-  probe_user_agent() {
-    local agent="$1"
-    local body
-    body=$(curl -s --max-time 3 -A "$agent" "$NETFLIX_URL" 2>>"$LOG" || true)
-    if echo "$body" | grep -qE '"uiType":"tv"|lolomo'; then
-      echo "tv"
-    else
-      echo "desktop"
-    fi
-  }
-  return 0 2>/dev/null || exit 0
-fi
-
 probe_user_agent() {
   local agent="$1"
   local body
@@ -39,6 +24,11 @@ probe_user_agent() {
     echo "desktop"
   fi
 }
+
+# Allow sourcing for tests without executing main logic
+if [[ "${1:-}" == "--source-only" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
 
 launch_chromium() {
   local agent="${1:-}"
@@ -59,6 +49,7 @@ main() {
   echo "[netflix] Starting launcher at $(date)" >>"$LOG"
 
   local selected_agent=""
+  local result
   for agent in "${TV_AGENTS[@]}"; do
     echo "[netflix] Probing with: ${agent:0:40}..." >>"$LOG"
     result=$(probe_user_agent "$agent")
