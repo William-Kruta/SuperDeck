@@ -1,0 +1,54 @@
+apps:
+  - id: jellyfin
+    name: Jellyfin
+    kind: web
+    category: Media
+    description: Movies, shows, music, and live TV
+    logo: /assets/logos/jellyfin-logo.png
+    url: http://localhost:8096
+    health_url: http://localhost:8096
+
+  - id: steam
+    name: Steam Big Picture
+    kind: command
+    category: Games
+    description: Controller-first PC gaming
+    logo: /assets/logos/steam-logo.png
+    command: env STEAM_BIG_PICTURE_MODE=tenfoot ./scripts/launch-steam-big-picture.sh
+
+  - id: retroarch
+    name: RetroArch
+    kind: command
+    category: Games
+    description: Emulators and classic games
+    logo: /assets/logos/retroarch-logo.png
+    command: retroarch
+
+  - id: mpv
+    name: mpv
+    kind: command
+    category: Media
+    description: Local video player
+    logo: /assets/logos/mpv-logo.png
+    command: mpv
+
+  - id: youtube
+    name: YouTube
+    kind: web
+    category: Media
+    description: YouTube TV — controller-friendly
+    logo: /assets/logos/youtube-logo.png
+    url: https://www.youtube.com/tv
+    health_url: https://www.youtube.com
+    require_reachable: false
+    chromium_args:
+      - "--user-agent=Mozilla/5.0 (SMART-TV; Linux; Tizen 5.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/5.0 TV Safari/538.1"
+
+  - id: netflix
+    name: Netflix
+    kind: command
+    category: Media
+    description: Netflix streaming
+    logo: /assets/logos/netflix-logo.webp
+    command: ./scripts/launch-netflix.sh
+    requires_display: true
