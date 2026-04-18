@@ -43,19 +43,19 @@
         <div class="settings-layout">
 
           <nav class="settings-nav" aria-label="Settings sections">
-            <button class="settings-nav-item is-active" data-panel="appearance" type="button">
+            <button class="settings-nav-item is-active" data-panel="appearance" type="button" role="tab" aria-selected="true">
               <span class="settings-nav-icon">🎨</span> Appearance
             </button>
-            <button class="settings-nav-item" data-panel="startup" type="button">
+            <button class="settings-nav-item" data-panel="startup" type="button" role="tab" aria-selected="false">
               <span class="settings-nav-icon">🚀</span> Startup
             </button>
-            <button class="settings-nav-item" data-panel="sysinfo" type="button">
+            <button class="settings-nav-item" data-panel="sysinfo" type="button" role="tab" aria-selected="false">
               <span class="settings-nav-icon">🖥</span> System Info
             </button>
           </nav>
 
           <!-- Appearance panel -->
-          <div class="settings-panel is-active" id="panel-appearance">
+          <div class="settings-panel is-active" id="panel-appearance" role="tabpanel">
             <div class="panel-section-title">Appearance</div>
 
             <div class="setting-row">
@@ -88,7 +88,7 @@
           </div>
 
           <!-- Startup panel -->
-          <div class="settings-panel" id="panel-startup">
+          <div class="settings-panel" id="panel-startup" role="tabpanel">
             <div class="panel-section-title">Startup</div>
             <div class="setting-row">
               <div class="setting-label">Auto-launch on startup</div>
@@ -98,7 +98,7 @@
           </div>
 
           <!-- System Info panel -->
-          <div class="settings-panel" id="panel-sysinfo">
+          <div class="settings-panel" id="panel-sysinfo" role="tabpanel">
             <div class="panel-section-title">System Info</div>
             <div id="sysinfo-content">
               <p class="setting-desc">Open this panel to load system status.</p>
@@ -115,7 +115,8 @@
       </div>
     </main>
 
-    <div class="lock-overlay" id="lock-overlay" hidden>
+    <div class="lock-overlay" id="lock-overlay" hidden
+         role="dialog" aria-modal="true" aria-labelledby="lock-title">
       <div>
         <span class="eyebrow">External app active</span>
         <h2 id="lock-title">Controller locked</h2>
