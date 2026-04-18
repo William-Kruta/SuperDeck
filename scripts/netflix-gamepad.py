@@ -14,7 +14,7 @@ DEAD_ZONE = 0.10  # ignore stick deflection below this fraction
 MAX_CURSOR_SPEED = 20  # pixels per tick at full deflection
 DPAD_STEP = 80  # pixels per D-pad press
 
-_running = True
+_stop = threading.Event()
 
 
 def pid_alive(pid: int) -> bool:
@@ -39,10 +39,9 @@ def apply_dead_zone(value: float) -> float:
 
 
 def watch_pid(pid: int) -> None:
-    global _running
-    while _running:
+    while not _stop.is_set():
         if not pid_alive(pid):
-            _running = False
+            _stop.set()
             return
         time.sleep(PID_CHECK_INTERVAL)
 
@@ -56,13 +55,17 @@ def find_gamepad():
 
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        devices = [evdev.InputDevice(p) for p in evdev.list_devices()]
-        for dev in devices:
+        for p in evdev.list_devices():
+            try:
+                dev = evdev.InputDevice(p)
+            except OSError:
+                continue
             caps = dev.capabilities()
             # Gamepad: has absolute axes (sticks) and buttons
             if evdev.ecodes.EV_ABS in caps and evdev.ecodes.EV_KEY in caps:
                 print(f"[netflix-gamepad] Using device: {dev.name}", file=sys.stderr)
                 return dev
+            dev.close()
         time.sleep(0.5)
 
     print("[netflix-gamepad] No gamepad found after 5s — exiting.", file=sys.stderr)
@@ -122,7 +125,7 @@ def run_loop(dev) -> None:
 
     # Move loop: update cursor from stick state at 60 Hz
     def move_loop():
-        while _running:
+        while not _stop.is_set():
             dx = int(stick.get(e.ABS_X, 0.0) * MAX_CURSOR_SPEED)
             dy = int(stick.get(e.ABS_Y, 0.0) * MAX_CURSOR_SPEED)
             if dx or dy:
@@ -144,16 +147,18 @@ def run_loop(dev) -> None:
 
     try:
         for event in dev.read_loop():
-            if not _running:
+            if _stop.is_set():
                 break
             handle_event(event)
     except OSError:
         pass  # device disconnected
 
 
-def main() -> None:
-    global _running
+def _handle_signal(*_):
+    _stop.set()
 
+
+def main() -> None:
     if len(sys.argv) != 2:
         print("Usage: netflix-gamepad.py <chromium-pid>", file=sys.stderr)
         sys.exit(1)
@@ -168,8 +173,8 @@ def main() -> None:
         print(f"[netflix-gamepad] PID {target_pid} not running — exiting.", file=sys.stderr)
         sys.exit(0)
 
-    signal.signal(signal.SIGTERM, lambda *_: globals().update(_running=False))
-    signal.signal(signal.SIGINT, lambda *_: globals().update(_running=False))
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
 
     dev = find_gamepad()
     if dev is None:
