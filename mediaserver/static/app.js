@@ -24,6 +24,7 @@ const THEME_PRESETS = {
 };
 
 function hexToRgba(hex, alpha) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return `rgba(0, 212, 255, ${alpha})`;
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -69,6 +70,7 @@ function markActiveSwatch(activePreset) {
 // ── View switching ────────────────────────────────────────────────────────
 function switchView(view) {
   document.body.dataset.view = view;
+  lastMoveAt = 0;
   settingsBtn.classList.toggle("is-active", view === "settings");
   if (view === "settings") {
     document.querySelector(".settings-nav-item")?.focus();
@@ -257,7 +259,7 @@ function renderStartupGrid() {
   });
   startupGrid.appendChild(noneBtn);
 
-  apps.forEach((app) => {
+  orderedApps.forEach((app) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `startup-option${app.id === savedId ? " is-active" : ""}`;
@@ -326,10 +328,10 @@ function renderSystemInfo(session, deps, services) {
     <div class="sysinfo-section">
       <div class="sysinfo-group-title">Session</div>${sessionRows}
     </div>
-    <div class="sysinfo-section" style="margin-top:20px">
+    <div class="sysinfo-section sysinfo-section--gap">
       <div class="sysinfo-group-title">Dependencies</div>${depsRows}
     </div>
-    <div class="sysinfo-section" style="margin-top:20px">
+    <div class="sysinfo-section sysinfo-section--gap">
       <div class="sysinfo-group-title">Services</div>${servicesRows}
     </div>
   `;
@@ -449,11 +451,13 @@ function handleGamepad(gamepad) {
 
   // Select button (index 8) toggles settings from either view
   if (buttonJustPressed(gamepad, 8)) {
+    updateButtonSnapshot(gamepad);
     if (!launcherInputLocked) switchView(inSettings ? "launcher" : "settings");
     return;
   }
 
   if (inSettings) {
+    if (document.hidden) return;
     if (buttonJustPressed(gamepad, 1)) switchView("launcher"); // B = back
     const vertical = gamepad.axes[1] || 0;
     const now = performance.now();

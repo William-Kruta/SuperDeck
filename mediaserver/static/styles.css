@@ -512,6 +512,7 @@ h1 .accent { color: var(--accent-primary); }
 
 /* System info */
 .sysinfo-section { display: flex; flex-direction: column; gap: 8px; }
+.sysinfo-section--gap { margin-top: 20px; }
 
 .sysinfo-group-title {
   font-size: 11px;
