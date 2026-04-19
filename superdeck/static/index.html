@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SuperDeck</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-view="launcher">
+    <div class="background-media" id="background-media" aria-hidden="true"></div>
+    <div class="corner-br" aria-hidden="true"></div>
+
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <p class="eyebrow">Local Console</p>
+          <h1>Super<span class="accent">Deck</span></h1>
+        </div>
+        <div class="topbar-right">
+          <div class="status" id="controller-status">
+            <span class="status-dot"></span>
+            <span id="controller-status-text">Keyboard ready</span>
+          </div>
+          <div class="diag-chip" id="diag-chip">
+            <div class="diag-item">
+              <span class="diag-label">CPU</span>
+              <span class="diag-val" id="diag-cpu">—</span>
+            </div>
+            <div class="diag-sep"></div>
+            <div class="diag-item">
+              <span class="diag-label">GPU</span>
+              <span class="diag-val" id="diag-gpu">—</span>
+            </div>
+            <div class="diag-sep"></div>
+            <div class="diag-item">
+              <span class="diag-label">PWR</span>
+              <span class="diag-val" id="diag-pwr">—</span>
+            </div>
+          </div>
+          <button class="topbar-icon-btn info-btn" id="info-btn" type="button"
+                  aria-label="Info" title="Info">i</button>
+          <button class="settings-btn" id="settings-btn" type="button"
+                  aria-label="Settings" title="Settings (S)">⚙</button>
+        </div>
+      </header>
+
+      <!-- ── Launcher view ── -->
+      <div class="launcher-view">
+        <section class="stage" aria-label="Apps">
+          <div class="recent-block" id="recent-block" hidden>
+            <div class="category-label">Recent</div>
+            <div class="grid" id="recent-grid"></div>
+          </div>
+          <div id="app-grid" role="listbox" aria-label="Launchable apps"></div>
+        </section>
+        <footer class="help" aria-label="Controls">
+          <span>D-pad / stick: move</span>
+          <span>A / Enter: launch</span>
+          <span>B / Esc: home</span>
+          <span>S / Select: settings</span>
+        </footer>
+      </div>
+
+      <!-- ── Settings view ── -->
+      <div class="settings-view" aria-label="Settings">
+        <div class="settings-layout">
+
+          <nav class="settings-nav" role="tablist" aria-label="Settings sections">
+            <button class="settings-nav-item is-active" data-panel="appearance" type="button" role="tab" aria-selected="true" id="tab-appearance" aria-controls="panel-appearance">
+              <span class="settings-nav-icon">🎨</span> Appearance
+            </button>
+            <button class="settings-nav-item" data-panel="startup" type="button" role="tab" aria-selected="false" id="tab-startup" aria-controls="panel-startup">
+              <span class="settings-nav-icon">🚀</span> Startup
+            </button>
+            <button class="settings-nav-item" data-panel="sysinfo" type="button" role="tab" aria-selected="false" id="tab-sysinfo" aria-controls="panel-sysinfo">
+              <span class="settings-nav-icon">🖥</span> System Info
+            </button>
+          </nav>
+
+          <!-- Appearance panel -->
+          <div class="settings-panel is-active" id="panel-appearance" role="tabpanel" aria-labelledby="tab-appearance">
+            <div class="panel-section-title">Appearance</div>
+
+            <div class="setting-row">
+              <div class="setting-label">Color Theme</div>
+              <div class="setting-desc">Preset accent color combinations</div>
+              <div class="theme-swatches">
+                <button class="theme-swatch" data-theme="cyan"   type="button">Cyan</button>
+                <button class="theme-swatch" data-theme="purple" type="button">Purple</button>
+                <button class="theme-swatch" data-theme="green"  type="button">Green</button>
+                <button class="theme-swatch" data-theme="amber"  type="button">Amber</button>
+              </div>
+            </div>
+
+            <div class="setting-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-label">Custom Colors</div>
+              <div class="setting-desc">Override the preset with your own accent colors</div>
+              <div class="color-picker-row">
+                <label class="color-picker-item">
+                  <input type="color" id="color-primary" value="#00d4ff" />
+                  Primary accent
+                </label>
+                <label class="color-picker-item">
+                  <input type="color" id="color-secondary" value="#a78bfa" />
+                  Secondary accent
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-label">Tile Transparency</div>
+              <div class="setting-desc">Adjust tile opacity when a background makes text hard to read.</div>
+              <div class="range-setting">
+                <input type="range" id="tile-alpha" min="0" max="30" step="1" value="3" />
+                <span id="tile-alpha-value">3%</span>
+                <button class="setting-action-btn" id="tile-alpha-reset" type="button">Reset</button>
+              </div>
+            </div>
+
+            <div class="setting-divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-label">Background</div>
+              <div class="setting-desc">Use the default grid, or choose uploaded image and video media.</div>
+              <div class="background-actions">
+                <label class="upload-btn">
+                  <input type="file" id="background-upload" accept="image/*,video/mp4,video/webm" />
+                  Upload Background
+                </label>
+                <span class="setting-desc" id="background-upload-status"></span>
+              </div>
+              <div class="background-grid" id="background-grid"></div>
+            </div>
+          </div>
+
+          <!-- Startup panel -->
+          <div class="settings-panel" id="panel-startup" role="tabpanel" aria-labelledby="tab-startup">
+            <div class="panel-section-title">Startup</div>
+            <div class="setting-row">
+              <div class="setting-label">Auto-launch on startup</div>
+              <div class="setting-desc">Automatically open an app when SuperDeck loads. Select None to disable.</div>
+              <div class="startup-grid" id="startup-grid"></div>
+            </div>
+          </div>
+
+          <!-- System Info panel -->
+          <div class="settings-panel" id="panel-sysinfo" role="tabpanel" aria-labelledby="tab-sysinfo">
+            <div class="panel-section-title">System Info</div>
+            <div class="setting-row">
+              <div class="setting-label">System Actions</div>
+              <div class="setting-desc">Confirm before power and service actions run.</div>
+              <div class="system-actions">
+                <button class="system-action" data-action="restart_mediaserver" type="button">Restart SuperDeck</button>
+                <button class="system-action" data-action="quit_mediaserver" type="button">Quit SuperDeck</button>
+                <button class="system-action" data-action="restart_jellyfin" type="button">Restart Jellyfin</button>
+                <button class="system-action" data-action="sleep" type="button">Sleep</button>
+                <button class="system-action system-action--danger" data-action="shutdown" type="button">Shutdown</button>
+                <button class="system-action" id="open-log-btn" type="button">Open Logs</button>
+              </div>
+              <div class="system-action-status setting-desc" id="system-action-status"></div>
+              <pre class="log-viewer" id="log-viewer" hidden></pre>
+            </div>
+            <div id="sysinfo-content">
+              <p class="setting-desc">Open this panel to load system status.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <footer class="help" aria-label="Settings controls">
+          <span>↑↓: sections</span>
+          <span>Enter: select</span>
+          <span>Esc / S: back</span>
+        </footer>
+      </div>
+    </main>
+
+    <div class="lock-overlay" id="lock-overlay" hidden
+         role="dialog" aria-modal="true" aria-labelledby="lock-title">
+      <div>
+        <span class="eyebrow">External app active</span>
+        <h2 id="lock-title">Controller locked</h2>
+        <p>Launcher input is paused. Press Escape or click here when you return.</p>
+      </div>
+    </div>
+
+    <aside class="debug-overlay" id="debug-overlay" hidden aria-label="Controller debug">
+      <div class="debug-title">Input Debug</div>
+      <div class="debug-grid">
+        <span>Focused</span><strong id="debug-focused">-</strong>
+        <span>Keyboard</span><strong id="debug-key">-</strong>
+        <span>Gamepad</span><strong id="debug-gamepad">-</strong>
+        <span>Buttons</span><strong id="debug-buttons">-</strong>
+        <span>Axes</span><strong id="debug-axes">-</strong>
+        <span>Move</span><strong id="debug-move">-</strong>
+      </div>
+    </aside>
+
+    <div class="info-modal" id="info-modal" hidden
+         role="dialog" aria-modal="true" aria-labelledby="info-title">
+      <div class="info-dialog">
+        <button class="info-close" id="info-close" type="button" aria-label="Close">×</button>
+        <span class="eyebrow">SuperDeck</span>
+        <h2 id="info-title">Info</h2>
+
+        <div class="info-row">
+          <span>Version</span>
+          <strong id="info-version">Loading</strong>
+        </div>
+
+        <div class="info-row">
+          <span>Author</span>
+          <a id="info-author-link" href="#" target="_blank" rel="noopener noreferrer">Author</a>
+        </div>
+
+        <a class="github-link" id="info-github-link" href="#" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
+          <img src="/assets/logos/github-logo.svg" alt="" />
+        </a>
+      </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
