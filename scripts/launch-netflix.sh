@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOG=/tmp/mediaserver-launch.log
+LOG=/tmp/superdeck-launch.log
 NETFLIX_URL="https://www.netflix.com"
 
-CHROMIUM_BIN="${MEDIASERVER_CHROMIUM_BIN:-chromium}"
-CHROMIUM_PROFILE="${MEDIASERVER_CHROMIUM_PROFILE:-/tmp/mediaserver-chromium}"
-CHROMIUM_EXTRA_ARGS="${MEDIASERVER_CHROMIUM_ARGS:-}"
+CHROMIUM_BIN="${SUPERDECK_CHROMIUM_BIN:-${MEDIASERVER_CHROMIUM_BIN:-chromium}}"
+CHROMIUM_PROFILE="${SUPERDECK_CHROMIUM_PROFILE:-/tmp/superdeck-chromium}"
+CHROMIUM_EXTRA_ARGS="${SUPERDECK_CHROMIUM_ARGS:-${MEDIASERVER_CHROMIUM_ARGS:-}}"
 
 TV_AGENTS=(
   "Mozilla/5.0 (SMART-TV; Linux; Tizen 5.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/5.0 TV Safari/538.1"

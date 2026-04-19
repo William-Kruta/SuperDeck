@@ -1,0 +1,18 @@
+[project]
+name = "superdeck"
+version = "0.1.0"
+description = "Local controller-friendly media console shell"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "pyyaml>=6.0.2",
+    "uvicorn[standard]>=0.34.0",
+]
+
+[project.scripts]
+superdeck = "superdeck.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

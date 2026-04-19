@@ -423,7 +423,7 @@ def _mediaserver_restart_command() -> list[str] | None:
     systemctl = _resolve_executable(("systemctl",))
     if systemctl is None:
         return None
-    return [systemctl, "--user", "restart", "mediaserver-user.service"]
+    return [systemctl, "--user", "restart", "superdeck.service"]
 
 
 def _system_action_command(action: SystemActionKind) -> list[str] | None:
@@ -641,7 +641,7 @@ def _require_url_reachable(media_app: MediaApp, url: str) -> None:
             status_code=424,
             detail=(
                 f"{media_app.name} is not reachable at {url}. "
-                "Start the service or update its URL in mediaserver/config/apps.yaml."
+                "Start the service or update its URL in superdeck/config/apps.yaml."
             ),
         ) from exc
 
@@ -699,7 +699,7 @@ def _missing_executable_error(executable: str) -> HTTPException:
         detail=(
             f"'{executable}' is not installed or is not on PATH. "
             "Install system dependencies with scripts/install-system-deps.sh, "
-            "or edit mediaserver/config/apps.yaml to point at the correct executable."
+            "or edit superdeck/config/apps.yaml to point at the correct executable."
         ),
     )
 
@@ -785,8 +785,14 @@ def _read_cpu_temp() -> int | None:
 
 def _read_gpu_stats() -> tuple[int | None, float | None]:
     nvidia_smi = _resolve_executable(("nvidia-smi",))
-    if nvidia_smi is None:
-        return None, None
+    if nvidia_smi is not None:
+        stats = _read_nvidia_gpu_stats(nvidia_smi)
+        if stats != (None, None):
+            return stats
+    return _read_gpu_stats_from_sensors()
+
+
+def _read_nvidia_gpu_stats(nvidia_smi: str) -> tuple[int | None, float | None]:
     try:
         result = subprocess.run(
             [
@@ -798,16 +804,82 @@ def _read_gpu_stats() -> tuple[int | None, float | None]:
             text=True,
             timeout=1,
         )
-        if result.returncode != 0:
-            return None, None
-        parts = [p.strip() for p in result.stdout.strip().split(",")]
-        if len(parts) != 2:
-            return None, None
-        gpu_temp = None if parts[0] in ("", "[N/A]") else int(parts[0])
-        gpu_power = None if parts[1] in ("", "[N/A]") else float(parts[1])
-        return gpu_temp, gpu_power
     except Exception:
         return None, None
+
+    if result.returncode != 0:
+        return None, None
+
+    temps: list[float] = []
+    powers: list[float] = []
+    for line in result.stdout.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 2:
+            continue
+        temp = _parse_sensor_number(parts[0])
+        power = _parse_sensor_number(parts[1])
+        if temp is not None:
+            temps.append(temp)
+        if power is not None:
+            powers.append(power)
+
+    gpu_temp = int(max(temps)) if temps else None
+    gpu_power = round(sum(powers), 1) if powers else None
+    return gpu_temp, gpu_power
+
+
+def _read_gpu_stats_from_sensors() -> tuple[int | None, float | None]:
+    sensors = _resolve_executable(("sensors",))
+    if sensors is None:
+        return None, None
+    try:
+        result = subprocess.run(
+            [sensors, "-j"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        if result.returncode != 0:
+            return None, None
+        data = json.loads(result.stdout)
+    except Exception:
+        return None, None
+
+    temps: list[float] = []
+    powers: list[float] = []
+    gpu_markers = ("amdgpu", "nvidia", "nouveau", "radeon", "gpu")
+    for chip_name, chip in data.items():
+        if not isinstance(chip, dict):
+            continue
+        chip_is_gpu = any(marker in str(chip_name).lower() for marker in gpu_markers)
+        if not chip_is_gpu:
+            continue
+        for _section_name, section in chip.items():
+            if not isinstance(section, dict):
+                continue
+            for key, val in section.items():
+                lower = key.lower()
+                if "temp" in lower and "_input" in lower and isinstance(val, (int, float)):
+                    temps.append(float(val))
+                if (
+                    "power" in lower
+                    and ("_input" in lower or "_average" in lower)
+                    and isinstance(val, (int, float))
+                ):
+                    powers.append(float(val))
+
+    gpu_temp = int(max(temps)) if temps else None
+    gpu_power = round(sum(powers), 1) if powers else None
+    return gpu_temp, gpu_power
+
+
+def _parse_sensor_number(value: str) -> float | None:
+    if value in ("", "[N/A]", "N/A"):
+        return None
+    try:
+        return float(value.removesuffix(" W").strip())
+    except ValueError:
+        return None
 
 
 app = create_app()

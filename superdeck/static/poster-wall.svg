@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1200" role="img" aria-label="Abstract wall of media posters">
+  <rect width="1800" height="1200" fill="#0b0f13"/>
+  <g opacity="0.9">
+    <rect x="92" y="110" width="210" height="310" rx="8" fill="#315245"/>
+    <rect x="330" y="72" width="250" height="348" rx="8" fill="#6f8f62"/>
+    <rect x="610" y="140" width="218" height="280" rx="8" fill="#3c6659"/>
+    <rect x="858" y="86" width="260" height="334" rx="8" fill="#b5983e"/>
+    <rect x="1148" y="126" width="216" height="294" rx="8" fill="#406d7a"/>
+    <rect x="1392" y="78" width="260" height="342" rx="8" fill="#8d514d"/>
+    <rect x="166" y="466" width="252" height="344" rx="8" fill="#8f7344"/>
+    <rect x="448" y="512" width="210" height="298" rx="8" fill="#45735d"/>
+    <rect x="688" y="454" width="248" height="356" rx="8" fill="#a25f55"/>
+    <rect x="966" y="500" width="212" height="310" rx="8" fill="#5e8069"/>
+    <rect x="1208" y="448" width="256" height="362" rx="8" fill="#b5a348"/>
+    <rect x="1494" y="510" width="218" height="300" rx="8" fill="#476f82"/>
+    <rect x="64" y="858" width="254" height="286" rx="8" fill="#435d79"/>
+    <rect x="348" y="850" width="212" height="294" rx="8" fill="#a86b58"/>
+    <rect x="590" y="878" width="260" height="266" rx="8" fill="#6c8b56"/>
+    <rect x="880" y="838" width="224" height="306" rx="8" fill="#315245"/>
+    <rect x="1134" y="876" width="258" height="268" rx="8" fill="#927b48"/>
+    <rect x="1422" y="840" width="280" height="304" rx="8" fill="#4f7780"/>
+  </g>
+  <g opacity="0.3" fill="#f4f7f4">
+    <rect x="128" y="152" width="138" height="16" rx="8"/>
+    <rect x="368" y="116" width="174" height="16" rx="8"/>
+    <rect x="896" y="132" width="184" height="16" rx="8"/>
+    <rect x="1184" y="172" width="142" height="16" rx="8"/>
+    <rect x="202" y="514" width="180" height="16" rx="8"/>
+    <rect x="724" y="502" width="176" height="16" rx="8"/>
+    <rect x="1248" y="498" width="176" height="16" rx="8"/>
+    <rect x="626" y="922" width="188" height="16" rx="8"/>
+    <rect x="1462" y="888" width="196" height="16" rx="8"/>
+  </g>
+</svg>
+

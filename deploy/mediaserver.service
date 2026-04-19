@@ -1,0 +1,19 @@
+[Unit]
+Description=SuperDeck console shell
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=william
+WorkingDirectory=/mnt/machine_learning/Coding/python/servers/SuperDeck
+ExecStart=/mnt/machine_learning/Coding/python/servers/SuperDeck/.venv/bin/python -m superdeck
+Restart=on-failure
+RestartSec=3
+
+# This system service is useful for API-only hosting. Prefer the generated
+# systemd user service from scripts/bootstrap-new-system.sh when launching
+# graphical apps such as Chromium, Steam, RetroArch, or mpv from the backend.
+
+[Install]
+WantedBy=multi-user.target

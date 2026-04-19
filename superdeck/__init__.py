@@ -1,0 +1,2 @@
+"""Local media console shell."""
+

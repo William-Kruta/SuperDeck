@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 install_apt() {
-  local packages=(chromium mpv steam-launcher retroarch xdotool python3-evdev)
+  local packages=(chromium mpv steam-launcher retroarch xdotool python3-evdev lm-sensors)
 
   if [[ "$skip_apt_update" -eq 1 ]]; then
     echo "Skipping apt-get update. Installing from the current apt package cache."
@@ -66,7 +66,7 @@ Fix the apt repository error above first. A common cause is a third-party repo
 with a missing signing key. In that case either add the repo key, disable that
 repo temporarily, or install packages manually, for example:
 
-  sudo apt-get install mpv retroarch chromium steam-launcher xdotool python3-evdev
+  sudo apt-get install mpv retroarch chromium steam-launcher xdotool python3-evdev lm-sensors
 
 EOF
     exit 1
@@ -77,15 +77,15 @@ EOF
 }
 
 install_dnf() {
-  sudo dnf install -y chromium mpv steam retroarch xdotool python3-evdev
+  sudo dnf install -y chromium mpv steam retroarch xdotool python3-evdev lm_sensors
 }
 
 install_pacman() {
-  sudo pacman -Syu --needed chromium mpv steam retroarch xdotool python-evdev
+  sudo pacman -Syu --needed chromium mpv steam retroarch xdotool python-evdev lm_sensors
 }
 
 install_zypper() {
-  sudo zypper install -y chromium mpv steam retroarch xdotool python3-evdev
+  sudo zypper install -y chromium mpv steam retroarch xdotool python3-evdev sensors
 }
 
 if command -v apt-get >/dev/null 2>&1; then
@@ -98,7 +98,7 @@ elif command -v zypper >/dev/null 2>&1; then
   install_zypper
 else
   echo "No supported package manager found." >&2
-  echo "Install these packages manually: chromium mpv steam retroarch xdotool python3-evdev" >&2
+  echo "Install these packages manually: chromium mpv steam retroarch xdotool python3-evdev lm-sensors" >&2
   exit 1
 fi
 
@@ -107,4 +107,4 @@ echo "System dependency install command completed."
 if [[ "$include_jellyfin" -eq 1 ]]; then
   "$(dirname "$0")/install-jellyfin.sh"
 fi
-echo "Restart MediaServer, then check: curl http://127.0.0.1:8080/api/dependencies"
+echo "Restart SuperDeck, then check: curl http://127.0.0.1:8085/api/dependencies"

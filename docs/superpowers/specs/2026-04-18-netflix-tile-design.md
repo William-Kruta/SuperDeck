@@ -5,7 +5,7 @@
 
 ## Overview
 
-Add a Netflix tile to the MediaServer launcher that opens Netflix in a controller-friendly way. The tile uses a smart launcher script that first probes for a TV-optimized Netflix UI via user-agent spoofing, then falls back to a gamepad-to-mouse daemon if no TV UI is found.
+Add a Netflix tile to the SuperDeck launcher that opens Netflix in a controller-friendly way. The tile uses a smart launcher script that first probes for a TV-optimized Netflix UI via user-agent spoofing, then falls back to a gamepad-to-mouse daemon if no TV UI is found.
 
 ## Architecture
 

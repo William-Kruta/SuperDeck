@@ -1,0 +1,14 @@
+[Unit]
+Description=SuperDeck console shell
+After=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/mnt/machine_learning/Coding/python/servers/SuperDeck
+ExecStart=/mnt/machine_learning/Coding/python/servers/SuperDeck/.venv/bin/python -m superdeck
+Restart=on-failure
+RestartSec=3
+Environment=SUPERDECK_CHROMIUM_PROFILE=/tmp/superdeck-chromium
+
+[Install]
+WantedBy=default.target

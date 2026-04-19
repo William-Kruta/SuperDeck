@@ -3,7 +3,7 @@
 
 ## Overview
 
-Redesign the MediaServer launcher UI from its current minimal dark style to a "Gaming Dashboard" aesthetic — bold, electric, Xbox/PlayStation-inspired with neon accents, glow effects, and high contrast. Add a Settings page (accessed via a topbar gear button) with three sections: Appearance (theme/colors), Startup behavior, and System Info.
+Redesign the SuperDeck launcher UI from its current minimal dark style to a "Gaming Dashboard" aesthetic — bold, electric, Xbox/PlayStation-inspired with neon accents, glow effects, and high contrast. Add a Settings page (accessed via a topbar gear button) with three sections: Appearance (theme/colors), Startup behavior, and System Info.
 
 ---
 
@@ -61,7 +61,7 @@ Active nav item: primary-accent background tint + colored border + colored text.
 
 **Startup panel:**
 - Label: "Auto-launch on startup"
-- Description: "Automatically open an app when MediaServer loads"
+- Description: "Automatically open an app when SuperDeck loads"
 - Grid of selectable app tiles (same style as launcher tiles, smaller) + a "None" option
 - Selection stored in `localStorage` as `{ startupAppId: "jellyfin" | null }`
 - On `loadApps()`, after rendering the grid, if `startupAppId` is set and matches a loaded app, call `launchApp(id)` automatically

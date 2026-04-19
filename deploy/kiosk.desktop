@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=SuperDeck Kiosk
+Exec=chromium --kiosk --app=http://127.0.0.1:8085
+X-GNOME-Autostart-enabled=true

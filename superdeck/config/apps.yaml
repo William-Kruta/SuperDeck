@@ -9,10 +9,10 @@ apps:
     health_url: http://localhost:8096
 
   - id: steam
-    name: Steam Big Picture
+    name: Steam
     kind: command
     category: Games
-    description: Controller-first PC gaming
+    description: ""
     logo: /assets/logos/steam-logo.png
     command: env STEAM_BIG_PICTURE_MODE=tenfoot ./scripts/launch-steam-big-picture.sh
 
@@ -36,7 +36,7 @@ apps:
     name: YouTube
     kind: web
     category: Media
-    description: YouTube TV — controller-friendly
+    description: ""
     logo: /assets/logos/youtube-logo.png
     url: https://www.youtube.com/tv
     health_url: https://www.youtube.com
@@ -48,7 +48,7 @@ apps:
     name: Netflix
     kind: command
     category: Media
-    description: Netflix streaming
-    logo: /assets/logos/netflix-logo.webp
+    description: ""
+    logo: /assets/logos/netflix-logo.png
     command: env ./scripts/launch-netflix.sh
     requires_display: true

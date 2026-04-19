@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesign the MediaServer launcher UI to a gaming-dashboard aesthetic and add a Settings page (Appearance, Startup, System Info) accessed via a topbar gear button.
+**Goal:** Redesign the SuperDeck launcher UI to a gaming-dashboard aesthetic and add a Settings page (Appearance, Startup, System Info) accessed via a topbar gear button.
 
 **Architecture:** Single-page app. `<body data-view="launcher|settings">` drives CSS visibility. All accent colors are CSS custom properties so themes swap by updating four vars. Theme and startup preference persist in `localStorage`. No backend changes.
 
@@ -20,7 +20,7 @@
 - [ ] **Step 1: Start the dev server**
 
 ```bash
-cd /mnt/machine_learning/Coding/python/servers/MediaServer
+cd /mnt/machine_learning/Coding/python/servers/SuperDeck
 .venv/bin/python -m mediaserver
 ```
 
@@ -607,7 +607,7 @@ git commit -m "feat: gaming dashboard CSS with CSS custom property theming"
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MediaServer</title>
+    <title>SuperDeck</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body data-view="launcher">
@@ -696,7 +696,7 @@ git commit -m "feat: gaming dashboard CSS with CSS custom property theming"
             <div class="panel-section-title">Startup</div>
             <div class="setting-row">
               <div class="setting-label">Auto-launch on startup</div>
-              <div class="setting-desc">Automatically open an app when MediaServer loads. Select None to disable.</div>
+              <div class="setting-desc">Automatically open an app when SuperDeck loads. Select None to disable.</div>
               <div class="startup-grid" id="startup-grid"></div>
             </div>
           </div>
@@ -735,7 +735,7 @@ git commit -m "feat: gaming dashboard CSS with CSS custom property theming"
 - [ ] **Step 2: Verify in browser**
 
 Refresh `http://localhost:8000`. You should see:
-- "Local Console" eyebrow + "MediaServer" heading with a cyan "Server" span
+- "Local Console" eyebrow + "SuperDeck" heading with a cyan "Server" span
 - Pulsing green status dot
 - Gear (⚙) button in the topbar
 - Corner bracket bottom-right
