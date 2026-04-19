@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import shlex
 import shutil
 import subprocess
-import json
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -229,6 +229,16 @@ def create_app() -> FastAPI:
     @app.get("/api/logs/launch", response_model=LogResponse)
     async def launch_log() -> LogResponse:
         return _launch_log()
+
+    @app.get("/api/diagnostics", response_model=DiagnosticsResponse)
+    def diagnostics() -> DiagnosticsResponse:
+        cpu_temp = _read_cpu_temp()
+        gpu_temp, gpu_power_w = _read_gpu_stats()
+        return DiagnosticsResponse(
+            cpu_temp=cpu_temp,
+            gpu_temp=gpu_temp,
+            gpu_power_w=gpu_power_w,
+        )
 
     @app.post("/api/system/actions/{action}", response_model=SystemActionResult)
     async def system_action(action: SystemActionKind, background_tasks: BackgroundTasks) -> SystemActionResult:
