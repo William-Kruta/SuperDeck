@@ -1277,7 +1277,7 @@ function updateButtonSnapshot(gamepad) {
 
 // ── Diagnostics ───────────────────────────────────────────────────────────
 function tempColor(val) {
-  if (val === null) return "";
+  if (val == null) return "";
   if (val >= 85) return "diag-val--hot";
   if (val >= 70) return "diag-val--warm";
   return "diag-val--cool";
@@ -1287,13 +1287,13 @@ async function fetchDiagnostics() {
   try {
     const d = await fetch("/api/diagnostics").then((r) => r.json());
 
-    diagCpu.textContent = d.cpu_temp !== null ? `${d.cpu_temp}°` : "—";
+    diagCpu.textContent = d.cpu_temp != null ? `${d.cpu_temp}°` : "—";
     diagCpu.className   = `diag-val ${tempColor(d.cpu_temp)}`.trim();
 
-    diagGpu.textContent = d.gpu_temp !== null ? `${d.gpu_temp}°` : "—";
+    diagGpu.textContent = d.gpu_temp != null ? `${d.gpu_temp}°` : "—";
     diagGpu.className   = `diag-val ${tempColor(d.gpu_temp)}`.trim();
 
-    diagPwr.textContent = d.gpu_power_w !== null ? `${Math.round(d.gpu_power_w)}W` : "—";
+    diagPwr.textContent = d.gpu_power_w != null ? `${Math.round(d.gpu_power_w)}W` : "—";
 
     const isHot = (d.cpu_temp ?? 0) >= 85 || (d.gpu_temp ?? 0) >= 85;
     diagChip.classList.toggle("diag--hot", isHot);
