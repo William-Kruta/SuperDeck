@@ -45,12 +45,19 @@ let appStatuses = new Map();
 let launchStates = new Map();
 let backgrounds = [];
 let focusedIndex = 0;
+let focusedTarget = { type: "tile", index: 0 };
 let lastMoveAt = 0;
 let lastButtonState = new Map();
 let lastAxisDirection = new Map();
 let lastLauncherMove = { direction: null, at: 0 };
 let launcherInputLocked = false;
+let launcherInputLockedAt = 0;
 let inputDebugEnabled = false;
+let tileActionMenu = null;
+let tileActionMenuAppId = null;
+let tileActionBusy = false;
+let launchingAppId = null;
+let infoFocusIndex = 0;
 
 const ABOUT_LINKS = {
   authorName: "William Kruta",
@@ -354,6 +361,7 @@ async function loadAppStatuses() {
 }
 
 function renderApps() {
+  closeTileActionMenu();
   orderedApps = [];
   const byCategory = new Map();
   apps.forEach((app) => {
@@ -422,9 +430,13 @@ function renderApps() {
         <p class="tile-description">${escapeHtml(app.description || "")}</p>
       `;
       tile.addEventListener("click", () => {
-        focusedIndex = index;
+        setTileFocus(index);
         updateFocus();
         launchFocusedApp();
+      });
+      tile.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        openTileActionMenu(index);
       });
       catGrid.appendChild(tile);
     });
@@ -479,9 +491,13 @@ function renderRecentApps() {
       <p class="tile-description">${escapeHtml(app.description || "")}</p>
     `;
     button.addEventListener("click", () => {
-      focusedIndex = index;
+      setTileFocus(index);
       updateFocus();
       launchFocusedApp();
+    });
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      openTileActionMenu(index);
     });
     recentGrid.appendChild(button);
   });
@@ -532,25 +548,34 @@ function updateAllLaunchStates() {
 }
 
 function updateFocus() {
+  const targets = getLauncherFocusTargets();
+  if (!targets.length) return;
+  if (!targets.some((target) => sameFocusTarget(target, focusedTarget))) {
+    focusedTarget = { type: "tile", index: Math.min(focusedIndex, Math.max(0, orderedApps.length - 1)) };
+  }
   const tiles = [...document.querySelectorAll(".tile")];
   tiles.forEach((tile, i) => {
-    const focused = i === focusedIndex;
+    const focused = focusedTarget.type === "tile" && Number(tile.dataset.index) === focusedTarget.index;
     tile.classList.toggle("is-focused", focused);
     tile.tabIndex = focused ? 0 : -1;
     tile.setAttribute("aria-selected", String(focused));
   });
-  tiles[focusedIndex]?.focus({ preventScroll: false });
+  [infoBtn, settingsBtn].forEach((button) => {
+    const focused = focusedTarget.type === "control" && focusedTarget.id === button.id;
+    button.classList.toggle("is-focused", focused);
+    button.tabIndex = focused ? 0 : -1;
+  });
+  const current = targets.find((target) => sameFocusTarget(target, focusedTarget)) || targets[0];
+  focusedTarget = current.key;
+  if (current.key.type === "tile") focusedIndex = current.key.index;
+  current.element.focus({ preventScroll: false });
   updateDebugFocused();
 }
 
 function moveFocus(direction) {
-  if (launcherInputLocked || !orderedApps.length) return;
+  if (launcherInputLocked || !getLauncherFocusTargets().length) return;
   if (isDuplicateLauncherMove(direction)) return;
-  if (direction === "left" || direction === "right") {
-    moveHorizontalFocus(direction);
-  } else {
-    moveVerticalFocus(direction);
-  }
+  moveSpatialFocus(direction);
   updateDebug("move", direction);
   updateFocus();
 }
@@ -563,40 +588,68 @@ function isDuplicateLauncherMove(direction) {
   return duplicate;
 }
 
-function moveHorizontalFocus(direction) {
-  const tiles = getTileRects();
-  const current = tiles.find((tile) => tile.index === focusedIndex);
+function moveSpatialFocus(direction) {
+  const targets = getLauncherFocusTargets();
+  const current = targets.find((target) => sameFocusTarget(target, focusedTarget));
   if (!current) return;
 
-  const candidates = tiles
-    .filter((tile) =>
+  if (direction === "up" && current.key.type === "tile") {
+    const topbarTarget = nearestTopbarTarget(targets, current);
+    if (topbarTarget) {
+      focusedTarget = topbarTarget.key;
+      return;
+    }
+  }
+
+  const candidates = targets
+    .filter((target) =>
       direction === "left"
-        ? tile.right < current.centerX - 8
-        : tile.left > current.centerX + 8
+        ? target.right < current.centerX - 8
+        : direction === "right"
+          ? target.left > current.centerX + 8
+          : direction === "up"
+            ? target.centerY < current.centerY - 8
+            : target.centerY > current.centerY + 8
     )
-    .map((tile) => {
-      const dx = Math.abs(tile.centerX - current.centerX);
-      const dy = Math.abs(tile.centerY - current.centerY);
-      return { ...tile, score: dx + dy * 3 };
+    .map((target) => {
+      const dx = Math.abs(target.centerX - current.centerX);
+      const dy = Math.abs(target.centerY - current.centerY);
+      const primary = direction === "left" || direction === "right" ? dx : dy;
+      const secondary = direction === "left" || direction === "right" ? dy : dx;
+      return { ...target, score: primary + secondary * 3 };
     })
-    .sort((a, b) => a.score - b.score || a.index - b.index);
+    .sort((a, b) => a.score - b.score || a.order - b.order);
 
   if (candidates[0]) {
-    focusedIndex = candidates[0].index;
+    focusedTarget = candidates[0].key;
     return;
   }
 
-  const wrapped = horizontalWrapTarget(tiles, current, direction);
-  if (wrapped) focusedIndex = wrapped.index;
+  if (direction === "left" || direction === "right") {
+    const wrapped = horizontalWrapTarget(targets, current, direction);
+    if (wrapped) focusedTarget = wrapped.key;
+  }
 }
 
-function horizontalWrapTarget(tiles, current, direction) {
+function nearestTopbarTarget(targets, current) {
+  const topbarTargets = targets
+    .filter((target) => target.key.type === "control")
+    .sort((a, b) => Math.abs(a.centerX - current.centerX) - Math.abs(b.centerX - current.centerX));
+  if (!topbarTargets.length) return null;
+
+  const tileTargets = targets.filter((target) => target.key.type === "tile");
+  const topTileY = Math.min(...tileTargets.map((target) => target.centerY));
+  if (Math.abs(current.centerY - topTileY) > current.height) return null;
+  return topbarTargets[0];
+}
+
+function horizontalWrapTarget(targets, current, direction) {
   const rowTolerance = current.height / 2;
-  const targetRows = tiles
-    .filter((tile) =>
+  const targetRows = targets
+    .filter((target) =>
       direction === "right"
-        ? tile.centerY > current.centerY + rowTolerance
-        : tile.centerY < current.centerY - rowTolerance
+        ? target.centerY > current.centerY + rowTolerance
+        : target.centerY < current.centerY - rowTolerance
     )
     .sort((a, b) =>
       direction === "right"
@@ -606,59 +659,64 @@ function horizontalWrapTarget(tiles, current, direction) {
 
   if (!targetRows[0]) return null;
   const targetY = targetRows[0].centerY;
-  const rowTiles = targetRows.filter(
-    (tile) => Math.abs(tile.centerY - targetY) <= rowTolerance
+  const rowTargets = targetRows.filter(
+    (target) => Math.abs(target.centerY - targetY) <= rowTolerance
   );
 
-  return rowTiles.sort((a, b) =>
+  return rowTargets.sort((a, b) =>
     direction === "right" ? a.left - b.left : b.right - a.right
   )[0];
 }
 
-function moveVerticalFocus(direction) {
-  const tiles = getTileRects();
-  const current = tiles.find((tile) => tile.index === focusedIndex);
-  if (!current) return;
-
-  const candidates = tiles
-    .filter((tile) =>
-      direction === "up"
-        ? tile.centerY < current.centerY - 8
-        : tile.centerY > current.centerY + 8
-    )
-    .map((tile) => {
-      const dx = Math.abs(tile.centerX - current.centerX);
-      const dy = Math.abs(tile.centerY - current.centerY);
-      return { ...tile, score: dx * 2 + dy };
-    })
-    .sort((a, b) => a.score - b.score || a.index - b.index);
-
-  if (candidates[0]) focusedIndex = candidates[0].index;
+function getLauncherFocusTargets() {
+  const targets = [infoBtn, settingsBtn, ...document.querySelectorAll(".tile")];
+  return targets.map((element, order) => focusTarget(element, order)).filter(Boolean);
 }
 
-function getTileRects() {
-  return [...document.querySelectorAll(".tile")].map((tile) => {
-    const rect = tile.getBoundingClientRect();
-    return {
-      index: Number(tile.dataset.index),
-      left: rect.left,
-      right: rect.right,
-      height: rect.height,
-      centerX: rect.left + rect.width / 2,
-      centerY: rect.top + rect.height / 2,
-    };
-  });
+function focusTarget(element, order) {
+  if (!element || element.hidden || element.offsetParent === null) return null;
+  const rect = element.getBoundingClientRect();
+  const key = element.classList.contains("tile")
+    ? { type: "tile", index: Number(element.dataset.index) }
+    : { type: "control", id: element.id };
+  return {
+    key,
+    element,
+    order,
+    left: rect.left,
+    right: rect.right,
+    height: rect.height,
+    centerX: rect.left + rect.width / 2,
+    centerY: rect.top + rect.height / 2,
+  };
+}
+
+function sameFocusTarget(a, b) {
+  const left = a.key || a;
+  const right = b.key || b;
+  return left.type === right.type && left.index === right.index && left.id === right.id;
+}
+
+function setTileFocus(index) {
+  focusedIndex = index;
+  focusedTarget = { type: "tile", index };
 }
 
 async function launchFocusedApp() {
   if (launcherInputLocked) return;
+  closeTileActionMenu();
+  if (focusedTarget.type === "control") {
+    document.querySelector(`#${focusedTarget.id}`)?.click();
+    return;
+  }
   const app = orderedApps[focusedIndex];
   if (!app) return;
   await launchApp(app);
 }
 
 async function launchApp(app) {
-  if (launcherInputLocked || !app) return;
+  if (launcherInputLocked || !app || launchingAppId) return;
+  launchingAppId = app.id;
   setLaunchState(app.id, "launching", "Launching");
   try {
     const response = await fetch(`/api/apps/${app.id}/launch`, {
@@ -673,6 +731,8 @@ async function launchApp(app) {
   } catch (error) {
     setLaunchState(app.id, "failed", "Failed");
     showToast(error.message, true);
+  } finally {
+    launchingAppId = null;
   }
 }
 
@@ -700,6 +760,7 @@ function clearActiveLaunchState() {
 
 function lockLauncherInput(appName) {
   launcherInputLocked = true;
+  launcherInputLockedAt = performance.now();
   lastButtonState = new Map();
   lastAxisDirection = new Map();
   lastLauncherMove = { direction: null, at: 0 };
@@ -710,6 +771,7 @@ function lockLauncherInput(appName) {
 
 function unlockLauncherInput() {
   launcherInputLocked = false;
+  launcherInputLockedAt = 0;
   lastButtonState = new Map();
   lastAxisDirection = new Map();
   lastLauncherMove = { direction: null, at: 0 };
@@ -717,12 +779,90 @@ function unlockLauncherInput() {
   controllerStatusEl.textContent = "Keyboard ready";
   clearActiveLaunchState();
   updateFocus();
+  releaseExternalAppInput();
+}
+
+function unlockLauncherInputAfterReturn() {
+  if (!launcherInputLocked) return;
+  if (performance.now() - launcherInputLockedAt < 500) return;
+  unlockLauncherInput();
+}
+
+function releaseExternalAppInput() {
+  fetch("/api/controller/release", { method: "POST" }).catch(() => {});
+}
+
+function openTileActionMenu(index = focusedIndex) {
+  if (launcherInputLocked || document.body.dataset.view === "settings") return;
+  const app = orderedApps[index];
+  const tile = document.querySelector(`.tile[data-index="${index}"]`);
+  if (!app || !tile) return;
+
+  setTileFocus(index);
+  updateFocus();
+  const menu = ensureTileActionMenu();
+  tileActionBusy = false;
+  tileActionMenuAppId = app.id;
+  menu.querySelector(".tile-action-title").textContent = app.name;
+  const rect = tile.getBoundingClientRect();
+  menu.style.left = `${Math.min(rect.left + 16, window.innerWidth - 220)}px`;
+  menu.style.top = `${Math.min(rect.top + 16, window.innerHeight - 120)}px`;
+  menu.hidden = false;
+  menu.querySelector("button").focus({ preventScroll: true });
+}
+
+function closeTileActionMenu() {
+  if (!tileActionMenu) return;
+  tileActionMenu.hidden = true;
+  tileActionMenuAppId = null;
+  tileActionBusy = false;
+}
+
+function ensureTileActionMenu() {
+  if (tileActionMenu) return tileActionMenu;
+  tileActionMenu = document.createElement("div");
+  tileActionMenu.className = "tile-action-menu";
+  tileActionMenu.hidden = true;
+  tileActionMenu.innerHTML = `
+    <div class="tile-action-title"></div>
+    <button class="tile-action-btn" type="button">Close</button>
+  `;
+  tileActionMenu
+    .querySelector("button")
+    .addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeTileActionApp();
+    });
+  document.body.appendChild(tileActionMenu);
+  return tileActionMenu;
+}
+
+async function closeTileActionApp() {
+  if (tileActionBusy) return;
+  const appId = tileActionMenuAppId;
+  const app = apps.find((item) => item.id === appId);
+  if (!appId || !app) return;
+  tileActionBusy = true;
+  closeTileActionMenu();
+  setLaunchState(appId, "launching", "Closing");
+  try {
+    const response = await fetch(`/api/apps/${appId}/close`, { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Close failed");
+    setLaunchState(appId, "", "");
+    showToast(result.detail || `${app.name} closed`);
+  } catch (error) {
+    setLaunchState(appId, "failed", "Failed");
+    showToast(error.message, true);
+  }
 }
 
 // ── Info modal ────────────────────────────────────────────────────────────
 async function openInfoModal() {
   infoModal.hidden = false;
-  infoClose.focus();
+  infoFocusIndex = 0;
+  updateInfoFocus();
   renderAboutLinks();
   await loadAboutInfo();
 }
@@ -730,6 +870,34 @@ async function openInfoModal() {
 function closeInfoModal() {
   infoModal.hidden = true;
   infoBtn.focus();
+}
+
+function infoFocusItems() {
+  return [infoClose, infoAuthorLink, infoGithubLink].filter((item) => item && !item.hidden);
+}
+
+function updateInfoFocus() {
+  const items = infoFocusItems();
+  if (!items.length) return;
+  infoFocusIndex = Math.max(0, Math.min(infoFocusIndex, items.length - 1));
+  items.forEach((item, index) => item.classList.toggle("is-focused", index === infoFocusIndex));
+  items[infoFocusIndex].focus({ preventScroll: true });
+}
+
+function moveInfoFocus(direction) {
+  const items = infoFocusItems();
+  if (!items.length) return;
+  if (direction === "up" || direction === "left") {
+    infoFocusIndex = (infoFocusIndex - 1 + items.length) % items.length;
+  } else {
+    infoFocusIndex = (infoFocusIndex + 1) % items.length;
+  }
+  updateInfoFocus();
+}
+
+function activateInfoFocus() {
+  const item = infoFocusItems()[infoFocusIndex];
+  item?.click();
 }
 
 function renderAboutLinks() {
@@ -792,7 +960,7 @@ function checkStartupLaunch() {
     if (!startupAppId) return;
     const idx = orderedApps.findIndex((a) => a.id === startupAppId);
     if (idx === -1) return;
-    focusedIndex = idx;
+    setTileFocus(idx);
     updateFocus();
     launchFocusedApp();
   } catch {
@@ -1058,6 +1226,16 @@ document.querySelector(".info-dialog").addEventListener("click", (event) => {
 });
 
 lockOverlay.addEventListener("click", unlockLauncherInput);
+document.addEventListener("pointerdown", (event) => {
+  if (!tileActionMenu || tileActionMenu.hidden) return;
+  if (tileActionMenu.contains(event.target) || event.target.closest(".tile")) return;
+  closeTileActionMenu();
+});
+window.addEventListener("focus", unlockLauncherInputAfterReturn);
+window.addEventListener("pageshow", unlockLauncherInputAfterReturn);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) unlockLauncherInputAfterReturn();
+});
 
 // ── Keyboard ──────────────────────────────────────────────────────────────
 window.addEventListener("keydown", (event) => {
@@ -1070,7 +1248,59 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (event.key === "Escape") {
+  if (!infoModal.hidden) {
+    event.preventDefault();
+    const arrowDir = {
+      ArrowLeft: "left",
+      ArrowRight: "right",
+      ArrowUp: "up",
+      ArrowDown: "down",
+    };
+    if (arrowDir[event.key]) {
+      moveInfoFocus(arrowDir[event.key]);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      activateInfoFocus();
+      return;
+    }
+    if (event.key === "Escape" || event.key === "Backspace") {
+      closeInfoModal();
+      return;
+    }
+    return;
+  }
+
+  if (tileActionMenu && !tileActionMenu.hidden) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      closeTileActionApp();
+      return;
+    }
+    if (
+      event.key === "Escape" ||
+      event.key === "Backspace" ||
+      event.key === "ContextMenu" ||
+      event.key.toLowerCase() === "m"
+    ) {
+      event.preventDefault();
+      closeTileActionMenu();
+      updateFocus();
+      return;
+    }
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      event.preventDefault();
+      return;
+    }
+  }
+
+  if (!launcherInputLocked && !inSettings && (event.key === "ContextMenu" || event.key.toLowerCase() === "m")) {
+    event.preventDefault();
+    openTileActionMenu();
+    return;
+  }
+
+  if (event.key === "Escape" || event.key === "Backspace") {
     event.preventDefault();
     if (!infoModal.hidden) {
       closeInfoModal();
@@ -1084,7 +1314,7 @@ window.addEventListener("keydown", (event) => {
       switchView("launcher");
       return;
     }
-    focusedIndex = 0;
+    setTileFocus(0);
     updateFocus();
     return;
   }
@@ -1153,6 +1383,25 @@ function handleGamepad(gamepad) {
     return;
   }
 
+  if (!infoModal.hidden) {
+    const direction = justPressedDirection(gamepad) || axisJustMoved(gamepad, horizontal, vertical);
+    if (direction) moveInfoFocus(direction);
+    if (buttonJustPressed(gamepad, 0)) activateInfoFocus();
+    if (buttonJustPressed(gamepad, 1)) closeInfoModal();
+    updateButtonSnapshot(gamepad);
+    return;
+  }
+
+  if (tileActionMenu && !tileActionMenu.hidden) {
+    if (buttonJustPressed(gamepad, 0)) closeTileActionApp();
+    if (buttonJustPressed(gamepad, 1) || buttonJustPressed(gamepad, 9)) {
+      closeTileActionMenu();
+      updateFocus();
+    }
+    updateButtonSnapshot(gamepad);
+    return;
+  }
+
   // Select button (index 8) toggles settings from either view
   if (buttonJustPressed(gamepad, 8)) {
     updateButtonSnapshot(gamepad);
@@ -1195,6 +1444,12 @@ function handleGamepad(gamepad) {
     return;
   }
 
+  if (buttonJustPressed(gamepad, 9)) {
+    openTileActionMenu();
+    updateButtonSnapshot(gamepad);
+    return;
+  }
+
   const now = performance.now();
   const dpadDirection = justPressedDirection(gamepad);
   const axisDirection = axisJustMoved(gamepad, horizontal, vertical);
@@ -1206,7 +1461,7 @@ function handleGamepad(gamepad) {
 
   if (buttonJustPressed(gamepad, 0)) launchFocusedApp();
   if (buttonJustPressed(gamepad, 1)) {
-    focusedIndex = 0;
+    setTileFocus(0);
     updateFocus();
   }
   updateButtonSnapshot(gamepad);

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import signal
 import shlex
 import shutil
 import subprocess
@@ -28,10 +29,14 @@ ASSETS_DIR = BASE_DIR.parent / "assets"
 BACKGROUNDS_DIR = ASSETS_DIR / "backgrounds"
 LAUNCH_LOG_PATH = Path(os.getenv("SUPERDECK_LAUNCH_LOG", "/tmp/superdeck-launch.log"))
 CONTROLLER_PROFILE = BASE_DIR.parent / "scripts" / "youtube-tv-controller.amgp"
+YOUTUBE_HOME_BUTTON_SCRIPT = BASE_DIR.parent / "scripts" / "youtube-home-button.py"
 ANTIMICROX_APP_IDS = {"youtube", "jellyfin"}
 ANTIMICROX_STOP_APP_IDS = {"steam"}
 
 _antimicrox_process: subprocess.Popen[bytes] | None = None
+_youtube_home_button_process: subprocess.Popen[bytes] | None = None
+_app_processes: dict[str, subprocess.Popen[bytes]] = {}
+_app_launch_locks: dict[str, asyncio.Lock] = {}
 CHROMIUM_CANDIDATES = (
     "chromium",
     "chromium-browser",
@@ -40,6 +45,15 @@ CHROMIUM_CANDIDATES = (
     "brave-browser",
     "microsoft-edge",
 )
+BRAVE_CANDIDATES = ("brave-browser", "brave-browser-stable", "brave")
+YOUTUBE_WINDOW_TITLES = ("YouTube TV", "YouTube")
+YOUTUBE_BRAVE_PROFILE = Path(
+    os.getenv(
+        "SUPERDECK_YOUTUBE_BRAVE_PROFILE",
+        Path.home() / ".config" / "superdeck" / "brave-youtube",
+    )
+)
+DEFAULT_BROWSER_APP_IDS = {"youtube"}
 BACKGROUND_EXTENSIONS = {".apng", ".avif", ".gif", ".jpg", ".jpeg", ".png", ".webm", ".webp", ".mp4"}
 MAX_BACKGROUND_BYTES = 200 * 1024 * 1024
 
@@ -89,6 +103,12 @@ class LaunchResult(BaseModel):
     target: str
     pid: int
     log_path: str
+
+
+@dataclass(frozen=True)
+class StartedProcess:
+    process: subprocess.Popen[bytes]
+    register: bool = True
 
 
 class HealthResponse(BaseModel):
@@ -146,6 +166,12 @@ class SystemActionResult(BaseModel):
 class LogResponse(BaseModel):
     path: str
     content: str
+
+
+class CloseResult(BaseModel):
+    id: str
+    status: Literal["closed", "not_running"]
+    detail: str
 
 
 class DiagnosticsResponse(BaseModel):
@@ -230,6 +256,19 @@ def create_app() -> FastAPI:
     async def launch_log() -> LogResponse:
         return _launch_log()
 
+    @app.post("/api/controller/release", response_model=HealthResponse)
+    async def release_controller() -> HealthResponse:
+        await asyncio.to_thread(_antimicrox_stop)
+        await asyncio.to_thread(_youtube_home_button_stop)
+        return HealthResponse()
+
+    @app.post("/api/apps/{app_id}/close", response_model=CloseResult)
+    async def close_app(app_id: str) -> CloseResult:
+        media_app = AppRegistry.load().get(app_id)
+        if media_app is None:
+            raise HTTPException(status_code=404, detail=f"Unknown app: {app_id}")
+        return await asyncio.to_thread(_close_app, media_app)
+
     @app.get("/api/diagnostics", response_model=DiagnosticsResponse)
     def diagnostics() -> DiagnosticsResponse:
         cpu_temp = _read_cpu_temp()
@@ -275,14 +314,21 @@ def create_app() -> FastAPI:
 
     @app.post("/api/apps/{app_id}/launch", response_model=LaunchResult)
     async def launch_app(app_id: str) -> LaunchResult:
+        async with _app_launch_lock(app_id):
+            return await _launch_app(app_id)
+
+    async def _launch_app(app_id: str) -> LaunchResult:
         media_app = AppRegistry.load().get(app_id)
         if media_app is None:
             raise HTTPException(status_code=404, detail=f"Unknown app: {app_id}")
 
         if app_id in ANTIMICROX_APP_IDS:
-            await asyncio.to_thread(_antimicrox_start)
+            await asyncio.to_thread(_antimicrox_start, app_id == "youtube")
         elif app_id in ANTIMICROX_STOP_APP_IDS:
             await asyncio.to_thread(_antimicrox_stop)
+
+        if app_id != "youtube":
+            await asyncio.to_thread(_youtube_home_button_stop)
 
         if media_app.kind == "web":
             if not media_app.url:
@@ -290,9 +336,22 @@ def create_app() -> FastAPI:
             if media_app.require_reachable:
                 await asyncio.to_thread(_require_url_reachable, media_app, media_app.health_url or media_app.url)
             try:
-                process = await asyncio.to_thread(_launch_chromium_app, media_app.url, media_app.chromium_args)
+                if app_id in DEFAULT_BROWSER_APP_IDS:
+                    started = await asyncio.to_thread(
+                        _launch_default_browser_app,
+                        media_app.url,
+                        media_app.chromium_args,
+                    )
+                    process = started.process
+                    if started.register:
+                        _register_app_process(app_id, process)
+                else:
+                    process = await asyncio.to_thread(_launch_chromium_app, media_app.url, media_app.chromium_args)
+                    _register_app_process(app_id, process)
             except FileNotFoundError as exc:
-                raise _missing_executable_error(exc.filename or "chromium") from exc
+                raise _missing_executable_error(exc.filename or "browser") from exc
+            if app_id == "youtube":
+                await asyncio.to_thread(_youtube_home_button_start)
             return LaunchResult(
                 id=app_id,
                 action="started_process",
@@ -312,6 +371,7 @@ def create_app() -> FastAPI:
             process = await asyncio.to_thread(_start_process, command)
         except FileNotFoundError as exc:
             raise _missing_executable_error(exc.filename or command[0]) from exc
+        _register_app_process(app_id, process)
         return LaunchResult(
             id=app_id,
             action="started_process",
@@ -724,16 +784,334 @@ def _launch_chromium_app(url: str, app_args: list[str] | None = None) -> subproc
     return _start_process(command)
 
 
-def _antimicrox_start() -> None:
+def _app_launch_lock(app_id: str) -> asyncio.Lock:
+    lock = _app_launch_locks.get(app_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _app_launch_locks[app_id] = lock
+    return lock
+
+
+def _launch_default_browser_app(url: str, app_args: list[str] | None = None) -> StartedProcess:
+    _require_graphical_session()
+    existing_window = _activate_existing_web_app_window(YOUTUBE_WINDOW_TITLES)
+    if existing_window is not None:
+        return StartedProcess(existing_window, register=False)
+
+    browser_command = _brave_browser_command() or _default_browser_command()
+    if browser_command is None:
+        xdg_open = _resolve_executable(("xdg-open",))
+        if xdg_open is None:
+            raise FileNotFoundError("xdg-open")
+        return StartedProcess(_start_process([xdg_open, url]))
+
+    extra_args = shlex.split(os.getenv("SUPERDECK_CHROMIUM_ARGS", ""))
+    YOUTUBE_BRAVE_PROFILE.mkdir(parents=True, exist_ok=True)
+    command = [
+        *browser_command,
+        "--new-window",
+        "--start-fullscreen",
+        f"--user-data-dir={YOUTUBE_BRAVE_PROFILE}",
+        f"--app={url}",
+        *(app_args or []),
+        *extra_args,
+    ]
+    return StartedProcess(_start_process(command))
+
+
+def _register_app_process(app_id: str, process: subprocess.Popen[bytes]) -> None:
+    _app_processes[app_id] = process
+
+
+def _close_app(media_app: MediaApp) -> CloseResult:
+    closed_process = _terminate_registered_process(media_app.id)
+    closed_windows = _close_app_windows(media_app)
+    if media_app.id == "youtube":
+        _youtube_home_button_stop()
+        _antimicrox_stop()
+
+    if closed_process or closed_windows:
+        details: list[str] = []
+        if closed_windows:
+            details.append(f"closed {closed_windows} window{'s' if closed_windows != 1 else ''}")
+        if closed_process:
+            details.append("stopped process")
+        return CloseResult(id=media_app.id, status="closed", detail=", ".join(details))
+
+    return CloseResult(id=media_app.id, status="not_running", detail=f"{media_app.name} was not running.")
+
+
+def _terminate_registered_process(app_id: str) -> bool:
+    process = _app_processes.pop(app_id, None)
+    if process is None or process.poll() is not None:
+        return False
+
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        process.terminate()
+
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            process.kill()
+        process.wait(timeout=2)
+    return True
+
+
+def _close_app_windows(media_app: MediaApp) -> int:
+    patterns = _app_window_title_patterns(media_app)
+    xdotool = _resolve_executable(("xdotool",))
+    if xdotool is None or not patterns:
+        return 0
+
+    window_ids: list[str] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        try:
+            result = subprocess.run(
+                [xdotool, "search", "--onlyvisible", "--name", pattern],
+                capture_output=True,
+                text=True,
+                timeout=1,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        for window_id in result.stdout.splitlines():
+            window_id = window_id.strip()
+            if window_id and window_id not in seen:
+                seen.add(window_id)
+                window_ids.append(window_id)
+
+    closed = 0
+    for window_id in window_ids:
+        try:
+            result = subprocess.run(
+                [xdotool, "windowclose", window_id],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=1,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if result.returncode == 0:
+            closed += 1
+    return closed
+
+
+def _app_window_title_patterns(media_app: MediaApp) -> tuple[str, ...]:
+    if media_app.id == "youtube":
+        return YOUTUBE_WINDOW_TITLES
+    patterns = [media_app.name]
+    if media_app.url:
+        parsed = urlparse(media_app.url)
+        if parsed.netloc:
+            patterns.append(parsed.netloc)
+    return tuple(dict.fromkeys(patterns))
+
+
+def _activate_existing_web_app_window(title_patterns: tuple[str, ...]) -> subprocess.Popen[bytes] | None:
+    xdotool = _resolve_executable(("xdotool",))
+    if xdotool is None:
+        return None
+
+    for pattern in title_patterns:
+        try:
+            result = subprocess.run(
+                [xdotool, "search", "--onlyvisible", "--name", pattern],
+                capture_output=True,
+                text=True,
+                timeout=1,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+
+        window_ids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        if not window_ids:
+            continue
+
+        try:
+            result = subprocess.run(
+                [xdotool, "windowactivate", window_ids[-1]],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=1,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if result.returncode == 0:
+            return subprocess.Popen(
+                ["true"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+    return None
+
+
+def _default_browser_command() -> list[str] | None:
+    desktop_id = _default_browser_desktop_id()
+    if desktop_id is None:
+        return None
+
+    desktop_file = _find_desktop_file(desktop_id)
+    if desktop_file is None:
+        return None
+
+    exec_line = _desktop_exec_line(desktop_file)
+    if exec_line is None:
+        return None
+
+    command = _desktop_exec_command(exec_line)
+    if not command:
+        return None
+
+    executable = _resolve_command_executable(command[0])
+    if executable is None:
+        return None
+    return [executable, *command[1:]]
+
+
+def _brave_browser_command() -> list[str] | None:
+    brave_bin = _resolve_executable(BRAVE_CANDIDATES)
+    if brave_bin is None:
+        return None
+    return [brave_bin]
+
+
+def _default_browser_desktop_id() -> str | None:
+    queries = (
+        ("xdg-settings", "get", "default-web-browser"),
+        ("xdg-mime", "query", "default", "x-scheme-handler/https"),
+    )
+    for query in queries:
+        executable = _resolve_executable((query[0],))
+        if executable is None:
+            continue
+        try:
+            result = subprocess.run(
+                [executable, *query[1:]],
+                capture_output=True,
+                text=True,
+                timeout=1,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        desktop_id = result.stdout.strip()
+        if result.returncode == 0 and desktop_id:
+            return desktop_id
+    return None
+
+
+def _find_desktop_file(desktop_id: str) -> Path | None:
+    if "/" in desktop_id:
+        path = Path(desktop_id).expanduser()
+        return path if path.is_file() else None
+
+    data_dirs = [
+        Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share")),
+        *(Path(path) for path in os.getenv("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":") if path),
+    ]
+    candidates = [desktop_id, desktop_id.lower()]
+    for data_dir in data_dirs:
+        applications_dir = data_dir / "applications"
+        for candidate in candidates:
+            desktop_file = applications_dir / candidate
+            if desktop_file.is_file():
+                return desktop_file
+    return None
+
+
+def _desktop_exec_line(desktop_file: Path) -> str | None:
+    in_desktop_entry = False
+    try:
+        lines = desktop_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_desktop_entry = line == "[Desktop Entry]"
+            continue
+        if in_desktop_entry and line.startswith("Exec="):
+            return line.removeprefix("Exec=").strip()
+    return None
+
+
+def _desktop_exec_command(exec_line: str) -> list[str]:
+    field_codes = {
+        "%f",
+        "%F",
+        "%u",
+        "%U",
+        "%d",
+        "%D",
+        "%n",
+        "%N",
+        "%i",
+        "%c",
+        "%k",
+        "%v",
+        "%m",
+    }
+    return [
+        part.replace("%%", "%")
+        for part in shlex.split(exec_line)
+        if part not in field_codes
+    ]
+
+
+def _antimicrox_start(force_restart: bool = False) -> None:
     global _antimicrox_process
+    if force_restart and _antimicrox_process is not None:
+        _antimicrox_process.terminate()
+        _antimicrox_process = None
     if _antimicrox_process is not None and _antimicrox_process.poll() is None:
         return
-    if not shutil.which("antimicrox") or not CONTROLLER_PROFILE.exists():
+    antimicrox_bin = shutil.which("antimicrox")
+    LAUNCH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    log_file = LAUNCH_LOG_PATH.open("ab")
+    if not antimicrox_bin:
+        log_file.write(b"\n\nantiMicroX disabled: antimicrox is not installed or not on PATH\n")
+        log_file.flush()
         return
+    if not CONTROLLER_PROFILE.exists():
+        log_file.write(f"\n\nantiMicroX disabled: profile missing at {CONTROLLER_PROFILE}\n".encode())
+        log_file.flush()
+        return
+    if force_restart:
+        log_file.write(b"\n\nUnloading existing antiMicroX profiles before YouTube launch\n")
+        log_file.flush()
+        try:
+            subprocess.run(
+                [antimicrox_bin, "--unload"],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                timeout=2,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            log_file.write(b"antiMicroX unload timed out; continuing with profile launch\n")
+            log_file.flush()
+    log_file.write(f"\n\nStarting antiMicroX profile: {CONTROLLER_PROFILE}\n".encode())
+    log_file.flush()
     _antimicrox_process = subprocess.Popen(
-        ["antimicrox", "--hidden", "--profile", str(CONTROLLER_PROFILE)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        [antimicrox_bin, "--hidden", "--profile", str(CONTROLLER_PROFILE)],
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
         start_new_session=True,
     )
 
@@ -743,6 +1121,38 @@ def _antimicrox_stop() -> None:
     if _antimicrox_process is not None:
         _antimicrox_process.terminate()
         _antimicrox_process = None
+
+
+def _youtube_home_button_start() -> None:
+    global _youtube_home_button_process
+    if _youtube_home_button_process is not None and _youtube_home_button_process.poll() is None:
+        return
+    LAUNCH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    log_file = LAUNCH_LOG_PATH.open("ab")
+    if not shutil.which("xdotool"):
+        log_file.write(b"\n\nYouTube home-button watcher disabled: xdotool is not installed\n")
+        log_file.flush()
+        return
+    if not YOUTUBE_HOME_BUTTON_SCRIPT.exists():
+        log_file.write(b"\n\nYouTube home-button watcher disabled: helper script is missing\n")
+        log_file.flush()
+        return
+    log_file.write(b"\n\nStarting YouTube home-button watcher\n")
+    log_file.flush()
+    _youtube_home_button_process = subprocess.Popen(
+        ["python3", str(YOUTUBE_HOME_BUTTON_SCRIPT)],
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        env=os.environ.copy(),
+    )
+
+
+def _youtube_home_button_stop() -> None:
+    global _youtube_home_button_process
+    if _youtube_home_button_process is not None:
+        _youtube_home_button_process.terminate()
+        _youtube_home_button_process = None
 
 
 def _chromium_candidates() -> tuple[str, ...]:
